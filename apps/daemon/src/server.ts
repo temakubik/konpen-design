@@ -35,7 +35,7 @@ import { validateLinkedDirs } from './linked-dirs.js';
 import { buildWindowsFolderDialogCommand, parseFolderDialogStdout } from './native-folder-dialog.js';
 import { listCodexPets, readCodexPetSpritesheet } from './codex-pets.js';
 import { syncCommunityPets } from './community-pets-sync.js';
-import { listDesignSystems, readDesignSystem, writeDesignSystem, deleteDesignSystem } from './design-systems.js';
+import { listDesignSystems, readDesignSystem, writeDesignSystem, deleteDesignSystem, readTokens, writeTokens } from './design-systems.js';
 import { attachAcpSession } from './acp.js';
 import { attachPiRpcSession } from './pi-rpc.js';
 import { createClaudeStreamHandler } from './claude-stream.js';
@@ -3032,6 +3032,29 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
       if (existing === null)
         return res.status(404).json({ error: 'design system not found' });
       await deleteDesignSystem(DESIGN_SYSTEMS_DIR, req.params.id);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.get('/api/design-systems/:id/tokens', async (req, res) => {
+    try {
+      const tokens = await readTokens(DESIGN_SYSTEMS_DIR, req.params.id);
+      if (tokens === null)
+        return res.status(404).json({ error: 'tokens not found' });
+      res.json({ tokens });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.put('/api/design-systems/:id/tokens', async (req, res) => {
+    try {
+      const { tokens } = req.body || {};
+      if (!tokens || typeof tokens !== 'object')
+        return res.status(400).json({ error: 'tokens object is required' });
+      await writeTokens(DESIGN_SYSTEMS_DIR, req.params.id, tokens);
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: String(err) });

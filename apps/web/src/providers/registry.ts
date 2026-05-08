@@ -228,6 +228,31 @@ export async function deleteDesignSystemApi(id: string): Promise<{ error?: strin
   }
 }
 
+export async function fetchTokens(id: string): Promise<Record<string, unknown> | null> {
+  try {
+    const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/tokens`);
+    if (!resp.ok) return null;
+    const json = await resp.json() as { tokens: Record<string, unknown> };
+    return json.tokens ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveTokens(id: string, tokens: Record<string, unknown>): Promise<{ error?: string }> {
+  try {
+    const resp = await fetch(`/api/design-systems/${encodeURIComponent(id)}/tokens`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokens }),
+    });
+    const json = await resp.json() as { error?: string };
+    return resp.ok ? {} : { error: json.error ?? 'unknown error' };
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
 export async function fetchPromptTemplates(): Promise<PromptTemplateSummary[]> {
   try {
     const resp = await fetch('/api/prompt-templates');
