@@ -27,7 +27,7 @@
   <a href="QUICKSTART.md"><img alt="Quickstart" src="https://img.shields.io/badge/quickstart-3%20commands-green?style=flat-square" /></a>
 </p>
 
-<p align="center"><a href="README.md">English</a> · <a href="README.es.md">Español</a> · <a href="README.pt-BR.md">Português (Brasil)</a> · <a href="README.de.md">Deutsch</a> · <a href="README.fr.md">Français</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.ko.md">한국어</a> · <a href="README.ja-JP.md">日本語</a> · <a href="README.ar.md">العربية</a> · <b>Русский</b> · <a href="README.uk.md">Українська</a> · <a href="README.tr.md">Türkçe</a></p>
+<p align="center"><a href="README.md">English</a> · <b>Русский</b></p>
 
 ---
 
@@ -711,7 +711,7 @@ Issues, PR, новые skills и новые design systems приветству�
 - **Добавить design system** — положите `DESIGN.md` в [`design-systems/<brand>/`](design-systems/), следуя схеме из 9 разделов.
 - **Подключить новый coding-agent CLI** — одна запись в [`apps/daemon/src/agents.ts`](apps/daemon/src/agents.ts).
 
-Полный walkthrough, bar-for-merging, code style и список того, что мы не принимаем → [`CONTRIBUTING.md`](CONTRIBUTING.md) ([Deutsch](CONTRIBUTING.de.md), [Français](CONTRIBUTING.fr.md), [简体中文](CONTRIBUTING.zh-CN.md)).
+Полный walkthrough, bar-for-merging и code style: откройте issue или discussion перед отправкой большого PR.
 
 ## Участники
 
