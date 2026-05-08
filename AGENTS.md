@@ -8,6 +8,7 @@ This file is the single source of truth for agents entering this repository. Rea
 - Contribution and environment: `CONTRIBUTING.md`, `CONTRIBUTING.zh-CN.md`.
 - Architecture and protocols: `docs/spec.md`, `docs/architecture.md`, `docs/skills-protocol.md`, `docs/agent-adapters.md`, `docs/modes.md`.
 - Roadmap and references: `docs/roadmap.md`, `docs/references.md`, `specs/current/maintainability-roadmap.md`.
+- Local dev runbook: `docs/runbook.md` — read this before starting/restarting the dev stack. Lists known traps (Turbopack stale cache, SQLite WAL bloat, embedded Next.js `app.prepare()` hang) and the recovery commands `scripts/od-start.sh`, `scripts/od-clean.sh`, `scripts/od-status.sh`.
 - Directory-level agent guidance: `apps/AGENTS.md`, `packages/AGENTS.md`, `tools/AGENTS.md`, `e2e/AGENTS.md`.
 
 ## Workspace directories
