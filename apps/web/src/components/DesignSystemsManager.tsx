@@ -8,6 +8,7 @@ import {
   updateDesignSystem,
 } from '../providers/registry';
 import { Icon } from './Icon';
+import { DesignTokenEditor } from './DesignTokenEditor';
 
 interface Props {
   systems: DesignSystemSummary[];
@@ -17,7 +18,8 @@ interface Props {
 type View =
   | { kind: 'list' }
   | { kind: 'create' }
-  | { kind: 'edit'; id: string; title: string; content: string };
+  | { kind: 'edit'; id: string; title: string; content: string }
+  | { kind: 'tokens'; id: string; title: string };
 
 function slugify(name: string): string {
   return name
@@ -93,6 +95,17 @@ export function DesignSystemsManager({ systems, onRefresh }: Props) {
     );
   }
 
+  if (view.kind === 'tokens') {
+    return (
+      <DesignTokenEditor
+        id={view.id}
+        title={view.title}
+        onClose={() => setView({ kind: 'list' })}
+        onSaved={onRefresh}
+      />
+    );
+  }
+
   return (
     <div className="ds-manager">
       <div className="ds-manager-header">
@@ -123,6 +136,16 @@ export function DesignSystemsManager({ systems, onRefresh }: Props) {
                 ) : null}
               </div>
               <div className="ds-manager-item-actions">
+                <button
+                  type="button"
+                  className="ghost ds-manager-btn"
+                  onClick={() => { setError(null); setView({ kind: 'tokens', id: ds.id, title: ds.title }); }}
+                  disabled={busy}
+                  title="Visual token editor"
+                >
+                  <Icon name="sliders" size={14} />
+                  <span>Visual</span>
+                </button>
                 <button
                   type="button"
                   className="ghost ds-manager-btn"

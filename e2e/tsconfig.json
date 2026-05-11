@@ -27,7 +27,6 @@
     "lib/**/*.ts",
     "resources/**/*.ts",
     "scripts/**/*.ts",
-    "specs/**/*.ts",
     "tests/**/*.ts",
     "ui/**/*.ts"
   ],

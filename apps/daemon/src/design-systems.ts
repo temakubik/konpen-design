@@ -60,6 +60,139 @@ export async function deleteDesignSystem(root, id) {
   await rm(dir, { recursive: true, force: true });
 }
 
+export async function readTokens(root, id) {
+  const file = path.join(root, id, 'tokens.json');
+  try {
+    return JSON.parse(await readFile(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+export async function writeTokens(root, id, tokens) {
+  const dir = path.join(root, id);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'tokens.json'), JSON.stringify(tokens, null, 2), 'utf8');
+  await writeFile(path.join(dir, 'DESIGN.md'), tokensToDesignMd(tokens), 'utf8');
+}
+
+function tokensToDesignMd(tokens) {
+  const c = tokens.colors ?? {};
+  const typo = tokens.typography ?? {};
+  const spacing = tokens.spacing ?? [];
+  const radii = tokens.radii ?? {};
+  const shadows = tokens.shadows ?? {};
+  const meta = tokens.meta ?? {};
+  const name = meta.name ?? 'Design System';
+
+  const colorRows = Object.entries(c)
+    .map(([k, v]) => `- **${camelToLabel(k)}** (\`${v}\`)`)
+    .join('\n');
+
+  const scaleRows = (typo.scale ?? [])
+    .map((s) => `| ${s.role} | ${s.mono ? 'Mono' : 'Primary'} | ${s.size}px | ${s.weight} | ${s.lineHeight}px |`)
+    .join('\n');
+
+  const spacingList = spacing.map((n) => `- \`${n}px\``).join('\n');
+
+  const radiiRows = Object.entries(radii)
+    .map(([k, v]) => `- **${camelToLabel(k)}:** \`${v}px\``)
+    .join('\n');
+
+  const shadowRows = Object.entries(shadows)
+    .map(([k, v]) => `- **${camelToLabel(k)}:** \`${v}\``)
+    .join('\n');
+
+  return `# ${name}
+
+## 1. Visual Theme & Atmosphere
+
+${meta.description ?? name + ' design system.'}
+
+## 2. Color Palette & Roles
+
+${colorRows}
+
+## 3. Typography Rules
+
+### Font Family
+**Primary:** ${typo.fontFamily ?? 'sans-serif'}
+
+**Monospace:** ${typo.fontFamilyMono ?? 'monospace'}
+
+### Hierarchy
+
+| Role | Font | Size | Weight | Line Height |
+|------|------|------|--------|-------------|
+${scaleRows}
+
+## 4. Component Stylings
+
+Refer to color and typography tokens above for all component styling decisions.
+
+- **Primary button background:** \`${c.primary ?? '#000'}\`, text \`${c.white ?? '#fff'}\`, radius \`${radii.button ?? 40}px\`
+- **Secondary button:** transparent bg, border \`1px solid ${c.border ?? '#ccc'}\`, radius \`${radii.button ?? 40}px\`
+- **Input:** bg \`${c.background ?? '#fff'}\`, border \`1px solid ${c.border ?? '#ccc'}\`, radius \`${radii.input ?? 8}px\`, height 44px
+- **Card:** bg \`${c.background ?? '#fff'}\`, border \`1px solid ${c.border ?? '#ccc'}\`, radius \`${radii.card ?? 16}px\`, padding 24px 32px
+- **Elevated card:** shadow \`${shadows.raised ?? 'none'}\`, radius \`${radii.card ?? 16}px\`
+
+## 5. Layout Principles
+
+### Spacing Scale
+
+**Base Unit:** \`4px\`
+
+${spacingList}
+
+### Border Radius Scale
+
+${radiiRows}
+
+## 6. Depth & Elevation
+
+${shadowRows}
+
+## 7. Do's and Don'ts
+
+### Do
+- Use \`${c.primary ?? '#000'}\` for all primary CTAs and key interactive elements
+- Apply \`${c.secondary ?? '#000'}\` to secondary actions that support—not compete with—primary
+- Use \`${c.success ?? '#000'}\` for success states and confirmation feedback
+- Maintain at least \`48px\` height for all clickable elements
+
+### Don't
+- Introduce new accent colors outside the defined palette
+- Use \`${c.error ?? '#f00'}\` for anything other than errors and warnings
+- Vary spacing arbitrarily; always reference the defined spacing scale
+
+## 8. Responsive Behavior
+
+- Mobile (375px–599px): 4-column grid, 16px padding, stack all sections
+- Tablet (600px–1023px): 8-column grid, 24px padding
+- Desktop (1024px+): 12-column grid, max-width 1440px
+
+## 9. Agent Prompt Guide
+
+### Quick Color Reference
+
+${Object.entries(c).map(([k, v]) => `- **${camelToLabel(k)}:** \`${v}\``).join('\n')}
+
+### Typography
+
+- Primary font: ${(typo.fontFamily ?? '').split(',')[0]}
+- Mono font: ${(typo.fontFamilyMono ?? '').split(',')[0]}
+- Body text: \`${(typo.scale ?? []).find((s) => s.role === 'Body')?.size ?? 16}px\` weight \`${(typo.scale ?? []).find((s) => s.role === 'Body')?.weight ?? 400}\`
+- Heading H1: \`${(typo.scale ?? [])[0]?.size ?? 56}px\` weight \`${(typo.scale ?? [])[0]?.weight ?? 700}\`
+`;
+}
+
+function camelToLabel(key) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim();
+}
+
 function summarize(raw) {
   const lines = raw.split(/\r?\n/);
   const firstH1 = lines.findIndex((l) => /^#\s+/.test(l));
