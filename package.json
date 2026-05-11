@@ -12,7 +12,6 @@
   "scripts": {
     "postinstall": "node ./scripts/postinstall.mjs",
     "tools-dev": "pnpm exec tools-dev",
-    "tools-pack": "pnpm exec tools-pack",
     "guard": "tsx ./scripts/guard.ts",
     "i18n:check": "tsx ./scripts/i18n-check.ts",
     "sync:community-pets": "node --experimental-strip-types scripts/sync-community-pets.ts",
@@ -22,7 +21,6 @@
   },
   "devDependencies": {
     "@open-design/tools-dev": "workspace:*",
-    "@open-design/tools-pack": "workspace:*",
     "@types/node": "^20.17.10",
     "tsx": "4.21.0",
     "typescript": "^5.6.3"
@@ -34,7 +32,6 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
-      "electron",
       "esbuild"
     ]
   }
