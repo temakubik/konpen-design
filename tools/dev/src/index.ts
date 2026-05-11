@@ -11,11 +11,6 @@ import {
   SIDECAR_MESSAGES,
   SIDECAR_SOURCES,
   type DaemonStatusSnapshot,
-  type DesktopClickResult,
-  type DesktopConsoleResult,
-  type DesktopEvalResult,
-  type DesktopScreenshotResult,
-  type DesktopStatusSnapshot,
   type WebStatusSnapshot,
 } from "@open-design/sidecar-proto";
 import { createSidecarLaunchEnv, requestJsonIpc } from "@open-design/sidecar";
@@ -54,19 +49,13 @@ import {
 } from "./diagnostics.js";
 import {
   inspectDaemonRuntime,
-  inspectDesktopRuntime,
   inspectWebRuntime,
   waitForDaemonRuntime,
-  waitForDesktopRuntime,
   waitForWebRuntime,
 } from "./sidecar-client.js";
 
 type CliOptions = ToolDevOptions & {
-  expr?: string;
   parentPid?: number;
-  path?: string;
-  selector?: string;
-  timeout?: string;
 };
 
 const TOOLS_DEV_PARENT_PID_ENV = SIDECAR_ENV.TOOLS_DEV_PARENT_PID;
@@ -463,19 +452,6 @@ async function spawnWebRuntime(config: ToolDevConfig, options: CliOptions): Prom
   }
 }
 
-async function buildDesktop(config: ToolDevConfig, logHandle: FileHandle): Promise<void> {
-  await logHandle.write(`\n[tools-dev] building @open-design/desktop at ${new Date().toISOString()}\n`);
-  const invocation = createPackageManagerInvocation(["--filter", "@open-design/desktop", "build"], process.env);
-  await runLoggedCommand({
-    args: invocation.args,
-    command: invocation.command,
-    cwd: config.workspaceRoot,
-    env: process.env,
-    logFd: logHandle.fd,
-    windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-  });
-}
-
 async function ensureWebDevNodeModules(config: ToolDevConfig): Promise<void> {
   const webRuntimeRoot = path.dirname(config.apps.web.nextDistDir);
   const runtimeNodeModules = path.join(webRuntimeRoot, "node_modules");
@@ -506,54 +482,6 @@ async function writeWebDevTsconfig(config: ToolDevConfig): Promise<void> {
     }, null, 2)}\n`,
     "utf8",
   );
-}
-
-async function spawnDesktopRuntime(config: ToolDevConfig, options: CliOptions): Promise<{ pid: number }> {
-  const { args: stampArgs, env } = createAppStamp(config, APP_KEYS.DESKTOP);
-  const logHandle = await openAppLog(config, APP_KEYS.DESKTOP);
-
-  try {
-    await buildDesktop(config, logHandle);
-    await logHandle.write(`[tools-dev] launching desktop at ${new Date().toISOString()}\n`);
-    const spawnEnv: NodeJS.ProcessEnv = {
-      ...process.env,
-      ...env,
-      ...(options.parentPid == null ? {} : { [TOOLS_DEV_PARENT_PID_ENV]: String(options.parentPid) }),
-    };
-    // ELECTRON_RUN_AS_NODE=1 makes Electron boot as plain Node and skip
-    // main-process API injection (app, BrowserWindow, protocol all become
-    // undefined). Strip it from the spawn env so desktop always boots in
-    // real Electron mode even when the parent shell is an Electron-based
-    // IDE that sets this variable for sidecar reuse.
-    //
-    // Iterate keys with a case-insensitive comparison rather than
-    // `delete spawnEnv.ELECTRON_RUN_AS_NODE`: spreading process.env into
-    // a plain object loses Node's Windows case-insensitive proxy, so any
-    // alternate-cased variant (e.g. `electron_run_as_node`) would still
-    // be passed to the child and Win32 CreateProcess would treat it as
-    // the same variable, undoing the fix.
-    //
-    // Scope is tools-dev only. The packaged runtime intentionally sets
-    // ELECTRON_RUN_AS_NODE on its own daemon/web sidecars (see
-    // apps/packaged/src/sidecars.ts) to reuse the bundled Node binary;
-    // that flow is independent and untouched here.
-    for (const key of Object.keys(spawnEnv)) {
-      if (key.toUpperCase() === "ELECTRON_RUN_AS_NODE") {
-        delete spawnEnv[key];
-      }
-    }
-    const spawned = await spawnBackgroundProcess({
-      args: [config.apps.desktop.mainEntryPath, ...stampArgs],
-      command: config.apps.desktop.electronBinaryPath,
-      cwd: config.workspaceRoot,
-      detached: true,
-      env: spawnEnv,
-      logFd: logHandle.fd,
-    });
-    return { pid: spawned.pid };
-  } finally {
-    await logHandle.close();
-  }
 }
 
 async function startDaemon(config: ToolDevConfig, options: CliOptions) {
@@ -614,37 +542,12 @@ async function startWeb(config: ToolDevConfig, options: CliOptions) {
   }
 }
 
-async function startDesktop(config: ToolDevConfig, options: CliOptions) {
-  const existing = await inspectDesktopRuntime(runtimeLookup(config));
-  if (existing != null) {
-    return { app: APP_KEYS.DESKTOP, created: false, logPath: config.apps.desktop.latestLogPath, status: existing };
-  }
-  await assertNoStaleActiveProcess(config, APP_KEYS.DESKTOP);
-
-  const spawned = await spawnDesktopRuntime(config, options);
-  try {
-    const status = await waitForDesktopRuntime(runtimeLookup(config));
-    return {
-      app: APP_KEYS.DESKTOP,
-      created: true,
-      logPath: config.apps.desktop.latestLogPath,
-      pid: spawned.pid,
-      status,
-    };
-  } catch (error) {
-    await stopApp(config, APP_KEYS.DESKTOP).catch(() => undefined);
-    throw error;
-  }
-}
-
 async function startApp(config: ToolDevConfig, appName: ToolDevAppName, options: CliOptions) {
   switch (appName) {
     case APP_KEYS.DAEMON:
       return await startDaemon(config, options);
     case APP_KEYS.WEB:
       return await startWeb(config, options);
-    case APP_KEYS.DESKTOP:
-      return await startDesktop(config, options);
   }
 }
 
@@ -699,17 +602,10 @@ async function inspectAppStatus(config: ToolDevConfig, appName: ToolDevAppName) 
     const active = await findAppProcessTree(config, appName);
     return { pid: active.rootPids[0] ?? null, state: active.pids.length > 0 ? "starting" : "idle", url: null } satisfies DaemonStatusSnapshot;
   }
-  if (appName === APP_KEYS.WEB) {
-    const status = await inspectWebRuntime(runtimeLookup(config));
-    if (status != null) return status;
-    const active = await findAppProcessTree(config, appName);
-    return { pid: active.rootPids[0] ?? null, state: active.pids.length > 0 ? "starting" : "idle", url: null } satisfies WebStatusSnapshot;
-  }
-
-  const status = await inspectDesktopRuntime(runtimeLookup(config));
+  const status = await inspectWebRuntime(runtimeLookup(config));
   if (status != null) return status;
   const active = await findAppProcessTree(config, appName);
-  return { pid: active.rootPids[0] ?? null, state: active.pids.length > 0 ? "unknown" : "idle", url: null };
+  return { pid: active.rootPids[0] ?? null, state: active.pids.length > 0 ? "starting" : "idle", url: null } satisfies WebStatusSnapshot;
 }
 
 function summarizeStatus(apps: Record<ToolDevAppName, any>): string {
@@ -804,49 +700,7 @@ function printCheckResult(result: unknown, options: CliOptions): void {
   }
 }
 
-function parseTimeoutMs(value: string | undefined): number | undefined {
-  if (value == null) return undefined;
-  const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds <= 0) throw new Error("--timeout must be a positive number of seconds");
-  return seconds * 1000;
-}
-
-async function inspectDesktop(config: ToolDevConfig, target: string | undefined, options: CliOptions) {
-  const operation = target ?? "status";
-  const timeoutMs = parseTimeoutMs(options.timeout) ?? 30000;
-
-  switch (operation) {
-    case "status":
-      return (await inspectDesktopRuntime(runtimeLookup(config), 1000)) ?? ({ state: "idle" } satisfies DesktopStatusSnapshot);
-    case "eval":
-      if (options.expr == null) throw new Error("--expr is required for desktop eval");
-      return await requestJsonIpc<DesktopEvalResult>(
-        config.apps.desktop.ipcPath,
-        { input: { expression: options.expr }, type: SIDECAR_MESSAGES.EVAL },
-        { timeoutMs },
-      );
-    case "screenshot":
-      if (options.path == null) throw new Error("--path is required for desktop screenshot");
-      return await requestJsonIpc<DesktopScreenshotResult>(
-        config.apps.desktop.ipcPath,
-        { input: { path: options.path }, type: SIDECAR_MESSAGES.SCREENSHOT },
-        { timeoutMs },
-      );
-    case "console":
-      return await requestJsonIpc<DesktopConsoleResult>(config.apps.desktop.ipcPath, { type: SIDECAR_MESSAGES.CONSOLE }, { timeoutMs });
-    case "click":
-      if (options.selector == null) throw new Error("--selector is required for desktop click");
-      return await requestJsonIpc<DesktopClickResult>(
-        config.apps.desktop.ipcPath,
-        { input: { selector: options.selector }, type: SIDECAR_MESSAGES.CLICK },
-        { timeoutMs },
-      );
-    default:
-      throw new Error(`unsupported desktop inspect target: ${operation}`);
-  }
-}
-
-async function inspect(config: ToolDevConfig, appName: string, target: string | undefined, options: CliOptions) {
+async function inspect(config: ToolDevConfig, appName: string, target: string | undefined, _options: CliOptions) {
   if (appName === APP_KEYS.DAEMON) {
     if (target != null && target !== "status") throw new Error(`unsupported daemon inspect target: ${target}`);
     return (await inspectDaemonRuntime(runtimeLookup(config), 1000)) ?? ({ state: "idle", url: null } satisfies DaemonStatusSnapshot);
@@ -855,8 +709,7 @@ async function inspect(config: ToolDevConfig, appName: string, target: string | 
     if (target != null && target !== "status") throw new Error(`unsupported web inspect target: ${target}`);
     return (await inspectWebRuntime(runtimeLookup(config), 1000)) ?? ({ state: "idle", url: null } satisfies WebStatusSnapshot);
   }
-  if (appName !== APP_KEYS.DESKTOP) throw new Error(`unsupported tools-dev app: ${appName}`);
-  return await inspectDesktop(config, target, options);
+  throw new Error(`unsupported tools-dev app: ${appName}`);
 }
 
 async function runSequential<T>(targets: readonly ToolDevAppName[], operation: (target: ToolDevAppName) => Promise<T>) {
@@ -914,7 +767,7 @@ function addPortOptions(command: ReturnType<typeof cli.command>) {
     .option("--prod", "use production build (requires pnpm --filter @open-design/web build first)");
 }
 
-addPortOptions(addSharedOptions(cli.command("start [app]", "Start daemon, web, desktop, or all when app is omitted"))).action(
+addPortOptions(addSharedOptions(cli.command("start [app]", "Start daemon, web, or both when app is omitted"))).action(
   async (appName: string | undefined, options: CliOptions) => {
     const config = resolveToolDevConfig(options);
     const targets = resolveStartApps(appName);
@@ -929,13 +782,13 @@ addPortOptions(addSharedOptions(cli.command("run [app]", "Start apps and keep th
   },
 );
 
-addSharedOptions(cli.command("status [app]", "Show app status for daemon, web, desktop, or all")).action(
+addSharedOptions(cli.command("status [app]", "Show app status for daemon, web, or both")).action(
   async (appName: string | undefined, options: CliOptions) => {
     printStatusResult(await status(resolveToolDevConfig(options), appName), options, appName);
   },
 );
 
-addSharedOptions(cli.command("stop [app]", "Stop daemon, web, desktop, or all when app is omitted")).action(
+addSharedOptions(cli.command("stop [app]", "Stop daemon, web, or both when app is omitted")).action(
   async (appName: string | undefined, options: CliOptions) => {
     const config = resolveToolDevConfig(options);
     const targets = resolveStopApps(appName);
@@ -944,13 +797,13 @@ addSharedOptions(cli.command("stop [app]", "Stop daemon, web, desktop, or all wh
   },
 );
 
-addPortOptions(addSharedOptions(cli.command("restart [app]", "Restart daemon, web, desktop, or all when app is omitted"))).action(
+addPortOptions(addSharedOptions(cli.command("restart [app]", "Restart daemon, web, or both when app is omitted"))).action(
   async (appName: string | undefined, options: CliOptions) => {
     printRestartResult(await restartTargets(resolveToolDevConfig(options), appName, options), options);
   },
 );
 
-addSharedOptions(cli.command("logs [app]", "Show log tail for daemon, web, desktop, or all")).action(
+addSharedOptions(cli.command("logs [app]", "Show log tail for daemon, web, or both")).action(
   async (appName: string | undefined, options: CliOptions) => {
     const config = resolveToolDevConfig(options);
     const targets = resolveTargetApps(appName, DEFAULT_START_APPS);
@@ -962,12 +815,8 @@ addSharedOptions(cli.command("logs [app]", "Show log tail for daemon, web, deskt
 );
 
 addSharedOptions(
-  cli.command("inspect <app> [target]", "Inspect daemon/web status or desktop status/eval/screenshot/console/click"),
+  cli.command("inspect <app> [target]", "Inspect daemon or web status"),
 )
-  .option("--expr <js>", "JavaScript expression for desktop eval")
-  .option("--path <file>", "Output path for desktop screenshot")
-  .option("--selector <css>", "CSS selector for desktop click")
-  .option("--timeout <seconds>", "Desktop inspect timeout in seconds")
   .action(async (appName: string, target: string | undefined, options: CliOptions) => {
     output(await inspect(resolveToolDevConfig(options), appName, target, options), options);
   });

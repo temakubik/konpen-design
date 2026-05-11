@@ -17,17 +17,14 @@ This file is the single source of truth for agents entering this repository. Rea
 - Top-level content directories: `skills/` (artifact-shape skills), `design-systems/` (brand `DESIGN.md` files), `craft/` (universal brand-agnostic craft rules a skill can opt into via `od.craft.requires`).
 - `apps/web` is the Next.js 16 App Router + React 18 web runtime; do not restore `apps/nextjs`.
 - `apps/daemon` is the local privileged daemon and `od` bin. It owns `/api/*`, agent spawning, skills, design systems, artifacts, and static serving.
-- `apps/desktop` is the Electron shell; it discovers the web URL through sidecar IPC.
-- `apps/packaged` is the thin packaged Electron runtime entry; it starts packaged sidecars and owns the `od://` entry glue only.
 - `packages/contracts` is the pure TypeScript web/daemon app contract layer.
 - `packages/sidecar-proto` owns the Open Design sidecar business protocol; `packages/sidecar` owns the generic sidecar runtime; `packages/platform` owns generic OS process primitives.
 - `tools/dev` is the local development lifecycle control plane.
-- `tools/pack` is the local packaged build/start/stop/logs control plane and mac beta release artifact preparation surface.
 - `e2e` owns user-level end-to-end smoke tests and Playwright UI automation; read `e2e/AGENTS.md` before editing its tests or commands.
 
 ## Inactive or placeholder directories
 
-- `apps/nextjs` and `packages/shared` have been removed; do not recreate or reference them.
+- `apps/nextjs`, `apps/desktop`, `apps/packaged`, `apps/landing-page`, `tools/pack`, and `packages/shared` have been removed; do not recreate or reference them.
 - `.od/`, `.tmp/`, Playwright reports, and agent scratch directories are local runtime data and must stay out of git.
 
 # Development workflow
@@ -47,8 +44,8 @@ This file is the single source of truth for agents entering this repository. Rea
 
 ## Root command boundary
 
-- Keep root scripts reserved for true repo-level checks and tools control-plane entrypoints: `pnpm guard`, `pnpm typecheck`, `pnpm tools-dev`, and `pnpm tools-pack`.
-- Do not add root aggregate `pnpm build` or `pnpm test` aliases. Build/test commands must stay package-scoped (`pnpm --filter <package> ...`) or tool-scoped (`pnpm tools-pack ...`).
+- Keep root scripts reserved for true repo-level checks and tools control-plane entrypoints: `pnpm guard`, `pnpm typecheck`, and `pnpm tools-dev`.
+- Do not add root aggregate `pnpm build` or `pnpm test` aliases. Build/test commands must stay package-scoped (`pnpm --filter <package> ...`).
 - Do not add root e2e aliases; e2e package commands and ownership rules live in `e2e/AGENTS.md`.
 
 ## Boundary constraints
@@ -60,11 +57,10 @@ This file is the single source of truth for agents entering this repository. Rea
 - Keep `packages/contracts` pure TypeScript and free of Next.js, Express, Node filesystem/process APIs, browser APIs, SQLite, daemon internals, and sidecar control-plane dependencies.
 - Keep project-owned entrypoints, modules, scripts, tests, reporters, and configs TypeScript-first; generated `dist/*.js` is runtime output, and source edits belong in `.ts` files.
 - New `.js`, `.mjs`, or `.cjs` files need an explicit generated/vendor/compatibility reason and must pass `pnpm guard`.
-- App business logic must not know about sidecar/control-plane concepts. Keep sidecar awareness in `apps/<app>/sidecar` or the desktop sidecar entry wrapper.
+- App business logic must not know about sidecar/control-plane concepts. Keep sidecar awareness in `apps/<app>/sidecar`.
 - Shared web/daemon app contracts belong in `packages/contracts`; that package must not depend on Next.js, Express, Node filesystem/process APIs, browser APIs, SQLite, daemon internals, or the sidecar control-plane protocol.
 - Sidecar process stamps must have exactly five fields: `app`, `mode`, `namespace`, `ipc`, and `source`.
-- Orchestration layers (`tools-dev`, `tools-pack`, packaged launchers) must call package primitives; do not hand-build `--od-stamp-*` args or process-scan regexes.
-- Packaged runtime paths must be namespace-scoped and independent from daemon/web ports; ports are transient transport details only.
+- Orchestration layers (`tools-dev`) must call package primitives; do not hand-build `--od-stamp-*` args or process-scan regexes.
 - Default runtime files live under `<project-root>/.tmp/<source>/<namespace>/...`; POSIX IPC sockets are fixed at `/tmp/open-design/ipc/<namespace>/<app>.sock`.
 
 ## Git commit policy
@@ -76,8 +72,6 @@ This file is the single source of truth for agents entering this repository. Rea
 - After package, workspace, or command-entry changes, run `pnpm install` so workspace links and generated dist entries stay fresh.
 - Before marking regular work ready, run at least `pnpm guard` and `pnpm typecheck`, plus the package-scoped tests/builds that match the files changed. Do not use or add root `pnpm test`/`pnpm build` aliases.
 - For local web runtime loops, prefer `pnpm tools-dev run web --daemon-port <port> --web-port <port>`.
-- On a GUI-capable machine, validate desktop by running `pnpm tools-dev`, then `pnpm tools-dev inspect desktop status`.
-- Stamp/namespace changes must validate two concurrent namespaces and run desktop `inspect eval` plus `inspect screenshot` for each namespace.
 - Path/log changes must run `pnpm tools-dev logs --namespace <name> --json` and confirm log paths are under `.tmp/tools-dev/<namespace>/...`.
 
 # Common commands
@@ -89,8 +83,6 @@ pnpm tools-dev start web
 pnpm tools-dev run web --daemon-port 17456 --web-port 17573
 pnpm tools-dev status --json
 pnpm tools-dev logs --json
-pnpm tools-dev inspect desktop status --json
-pnpm tools-dev inspect desktop screenshot --path /tmp/open-design.png
 pnpm tools-dev stop
 pnpm tools-dev check
 ```
@@ -106,36 +98,18 @@ pnpm --filter @open-design/web test
 pnpm --filter @open-design/web build
 pnpm --filter @open-design/daemon test
 pnpm --filter @open-design/daemon build
-pnpm --filter @open-design/desktop build
 pnpm --filter @open-design/tools-dev build
-pnpm --filter @open-design/tools-pack build
-```
-
-```bash
-pnpm tools-pack mac build --to all
-pnpm tools-pack mac install
-pnpm tools-pack mac cleanup
-pnpm tools-pack win build --to nsis
-pnpm tools-pack win install
-pnpm tools-pack win cleanup
-pnpm tools-pack linux build --to appimage
-pnpm tools-pack linux install
-pnpm tools-pack linux build --containerized
 ```
 
 # FAQ
 
 ## Why is there no root `pnpm dev` / `pnpm start`?
 
-To avoid starting daemon, web, and desktop through inconsistent env, port, namespace, or log paths. All local lifecycle flows must go through `pnpm tools-dev`.
+To avoid starting daemon and web through inconsistent env, port, namespace, or log paths. All local lifecycle flows must go through `pnpm tools-dev`.
 
 ## Why should `apps/nextjs` not be restored?
 
 The current web runtime is `apps/web`. The historical `apps/nextjs` layout has been removed from the active repo shape; restoring it would reintroduce duplicate app boundaries and stale scripts.
-
-## How does desktop discover the web URL?
-
-Desktop queries runtime status through sidecar IPC. The web URL comes from `tools-dev` launch status, not from desktop guessing ports or reading web internals.
 
 ## How are sidecar-proto, sidecar, and platform split?
 
@@ -145,7 +119,7 @@ Desktop queries runtime status through sidecar IPC. The web URL comes from `tool
 
 The daemon writes `.od/` by default: SQLite at `.od/app.sqlite`, agent CWDs under `.od/projects/<id>/`, saved renders under `.od/artifacts/`, and credentials at `.od/media-config.json`. Two env vars override the storage root, in order:
 
-1. `OD_DATA_DIR=<dir>` — relocates *all* daemon runtime data to `<dir>` (used by Playwright for test isolation, and by the packaged daemon and the Home Manager / NixOS modules to point the daemon at a writable directory when the install root is read-only). The path is resolved with `~/` expansion and relative paths anchored to `<projectRoot>`.
+1. `OD_DATA_DIR=<dir>` — relocates *all* daemon runtime data to `<dir>` (used by Playwright for test isolation, when the install root is read-only). The path is resolved with `~/` expansion and relative paths anchored to `<projectRoot>`.
 2. `OD_MEDIA_CONFIG_DIR=<dir>` — narrower override that relocates *only* `media-config.json`. Same resolution semantics. Most installs do not need this; it exists for setups that want to keep API credentials in a different location from the rest of the runtime data.
 
 Default precedence is OD_MEDIA_CONFIG_DIR > OD_DATA_DIR > `<projectRoot>/.od`.

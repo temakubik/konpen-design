@@ -36,10 +36,7 @@ Until the sidecar issue is fixed, `scripts/od-start.sh` runs daemon via `tools-d
 **Cause:** Previous web process didn't clean up `apps/web/.next/dev/lock`.
 **Fix:** `pkill -9 -f "next dev|next-server"` or run `scripts/od-clean.sh`.
 
-### 4. Two namespaces colliding
-Don't run packaged `Open Design.app` and dev stack with the same namespace simultaneously. They share `/tmp/open-design/ipc/<ns>/*.sock`. Use `--namespace dev` for one of them or close the packaged app.
-
-### 5. `tools-dev start web` 35s timeout (was)
+### 4. `tools-dev start web` 35s timeout (was)
 The original timeout in `tools/dev/src/sidecar-client.ts` was 35s. Bumped to 300s in this repo. Cold Turbopack compile + Next.js init can exceed 35s.
 
 ## Editing checklist
