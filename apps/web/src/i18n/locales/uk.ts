@@ -37,7 +37,7 @@ export const uk: Dict = {
   'common.daysShort': '{n}дн',
   'common.untitled': 'Без назви',
 
-  'app.brand': 'Open Design',
+  'app.brand': 'DisKon',
   'app.brandPill': 'Попередній перегляд',
   'app.brandSubtitle': 'від Nexu Labs',
   'app.welcomeLoading': 'Завантаження робочого простору…',
