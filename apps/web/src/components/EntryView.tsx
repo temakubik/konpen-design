@@ -12,7 +12,6 @@ import type {
 } from '../types';
 import { DesignsTab } from './DesignsTab';
 import { DesignSystemsManager } from './DesignSystemsManager';
-import { AppChromeHeader } from './AppChromeHeader';
 import { Icon } from './Icon';
 import { LanguageMenu } from './LanguageMenu';
 import { CenteredLoader } from './Loading';
@@ -314,21 +313,8 @@ export function EntryView({
     return () => window.removeEventListener('focus', onFocus);
   }, [reloadConnectorStatuses]);
 
-  const avatarMenu = (
-    <button
-      type="button"
-      className="settings-icon-btn"
-      onClick={() => onOpenSettings()}
-      title={t('entry.openSettingsTitle')}
-      aria-label={t('entry.openSettingsAria')}
-    >
-      <Icon name="settings" size={17} />
-    </button>
-  );
-
   return (
     <div className="entry-shell">
-      <AppChromeHeader actions={avatarMenu} />
       <div
         className="entry"
         style={{
